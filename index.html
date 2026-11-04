@@ -96,6 +96,7 @@ button { cursor: pointer; }
 .layer video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: fill; }
 .layer video.mirror { transform: scaleX(-1); }
 .layer canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.layer canvas.screencopy.mirror { transform: scaleX(-1); }
 .ghost { position: absolute; transform-origin: 50% 50%; pointer-events: none; }
 .ghost:empty { display: none; }
 .ghost[data-look="tint"] { filter: grayscale(1) sepia(1) saturate(5) hue-rotate(150deg) brightness(1.05); }
@@ -1515,6 +1516,26 @@ function drawClipInto(c, p, dx, dy, dw, dh) {
   c.fillStyle = "#ffd60a"; c.textAlign = "left"; c.textBaseline = "middle";
   c.fillText(tag, ox + f * 0.9, oy + f * 1.22);
 }
+/* Safari on iPad stops showing videos on screen while they're being copied into a recording.
+   During a recording there, each video is redrawn on screen from the same frames being recorded. */
+let SCREEN_COPY = BROWSER === "Safari" || /iPad|iPhone|CriOS|FxiOS|EdgiOS/.test(UA) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(UA));
+function updateScreenCopies() {
+  panels.forEach(p => {
+    const v = p.v;
+    let c = p.copy;
+    if (!c) { c = p.copy = document.createElement("canvas"); c.className = "screencopy"; c.setAttribute("aria-hidden", "true"); }
+    if (c.previousElementSibling !== v) v.after(c);
+    const box = v.getBoundingClientRect();
+    if (!v.videoWidth || !box.width) { c.hidden = true; return; }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(Math.min(v.videoWidth, box.width * dpr)), h = Math.round(w * v.videoHeight / v.videoWidth);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    c.classList.toggle("mirror", v.classList.contains("mirror"));
+    c.hidden = false;
+    try { c.getContext("2d").drawImage(v, 0, 0, w, h); } catch (e) {}
+  });
+}
+function removeScreenCopies() { panels.forEach(p => { if (p.copy) { p.copy.remove(); p.copy = null; } }); }
 function drawRecFrame() {
   const c = REC.ctx, W = REC.canvas.width, H = REC.canvas.height;
   c.setTransform(1, 0, 0, 1, 0, 0);
@@ -1541,6 +1562,7 @@ function recLoop(now) {
     REC.lastDraw = REC.lastDraw && now - REC.lastDraw < 2000 / REC_FPS ? REC.lastDraw + 1000 / REC_FPS : now;
     drawRecFrame();
     if (REC.manual) { try { REC.vtrack.requestFrame(); } catch (e) {} }
+    if (SCREEN_COPY) updateScreenCopies();
   }
   const secs = Math.floor((REC.acc + (REC.paused ? 0 : performance.now() - REC.t0)) / 1000);
   const tt = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
@@ -1608,6 +1630,7 @@ function togglePauseRecording() {
 function stopTracks() { if (REC.mic) REC.mic.getTracks().forEach(t => t.stop()); REC.mic = null; }
 function stopRecording() {
   if (!REC.on) return;
+  removeScreenCopies();
   if (!REC.paused) REC.acc += performance.now() - REC.t0;
   REC.on = false; REC.paused = false; cancelAnimationFrame(REC.raf);
   try { REC.mr.stop(); } catch (e) { finishRecording(); }
