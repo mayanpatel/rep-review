@@ -1445,10 +1445,15 @@ $("#keysClose").onclick = () => closeDlg($("#keysDlg"));
 
 /* ---------- recorder: video area + drawings + voice ---------- */
 const REC = { on: false, paused: false, fmt: "screen", mr: null, chunks: [], canvas: null, ctx: null, mic: null, raf: 0, t0: 0, acc: 0, blob: null, url: "", mime: "", ext: "mp4", hadVoice: false };
+const UA = navigator.userAgent;
+const BROWSER = /Edg\//.test(UA) ? "Edge" : /Electron|Claude\//.test(UA) ? "Claude app" : /Firefox\//.test(UA) ? "Firefox" : /Chrome\/|CriOS/.test(UA) ? "Chrome" : /Safari\//.test(UA) ? "Safari" : "this browser";
+const badMimes = new Set();
 function pickMime() {
   if (!window.MediaRecorder) return null;
-  const opts = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
-  return opts.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || null;
+  const safari = BROWSER === "Safari";
+  const opts = safari ? ["video/mp4", "video/mp4;codecs=avc1,mp4a.40.2", "video/webm"]
+    : ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/mp4", "video/webm"];
+  return opts.find(m => { if (badMimes.has(m)) return false; try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || null;
 }
 const even = n => Math.max(2, Math.round(n / 2) * 2);
 function recSize() {
@@ -1502,6 +1507,7 @@ function drawRecFrame() {
 function recLoop() {
   if (!REC.on) return;
   drawRecFrame();
+  if (REC.vtrack && REC.vtrack.requestFrame) { try { REC.vtrack.requestFrame(); } catch (e) {} }
   const secs = Math.floor((REC.acc + (REC.paused ? 0 : performance.now() - REC.t0)) / 1000);
   const tt = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
   $("#recTime").textContent = tt; $("#cRecTime").textContent = tt;
@@ -1531,19 +1537,27 @@ async function startRecording() {
   }
   REC.canvas = document.createElement("canvas");
   [REC.canvas.width, REC.canvas.height] = recSize();
+  // Safari only takes frames from a canvas that is on the page, so keep it there, invisible.
+  REC.canvas.setAttribute("aria-hidden", "true");
+  REC.canvas.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1";
+  document.body.appendChild(REC.canvas);
+  REC.err = "";
   REC.ctx = REC.canvas.getContext("2d");
   drawRecFrame();
   const cd = $("#countdown");
   for (const n of [3, 2, 1]) { cd.textContent = n; cd.hidden = false; drawRecFrame(); await new Promise(r => setTimeout(r, 700)); }
   cd.hidden = true;
   const stream = REC.canvas.captureStream(30);
+  REC.vtrack = stream.getVideoTracks()[0];
   if (REC.mic) REC.mic.getAudioTracks().forEach(t => stream.addTrack(t));
   try {
     REC.mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: REC.fmt === "vertical" ? 10e6 : 8e6, audioBitsPerSecond: 128000 });
-  } catch (e) { REC.starting = false; stopTracks(); toast("Recording couldn't start in this browser."); return; }
+  } catch (e) { REC.starting = false; stopTracks(); REC.canvas.remove(); badMimes.add(mime); toast("Recording couldn't start. Try again: Rep Review will use a different video format."); return; }
   REC.mime = mime; REC.ext = mime.startsWith("video/mp4") ? "mp4" : "webm"; REC.chunks = [];
   REC.mr.ondataavailable = e => { if (e.data && e.data.size) REC.chunks.push(e.data); };
   REC.mr.onstop = finishRecording;
+  REC.mr.onerror = e => { REC.err = (e && e.error && (e.error.name + (e.error.message ? ": " + e.error.message : ""))) || "recorder error"; stopRecording(); };
+  REC.finished = false;
   REC.mr.start(1000);
   REC.on = true; REC.paused = false; REC.acc = 0; REC.t0 = performance.now(); REC.starting = false;
   setRecUI(); recLoop();
@@ -1565,7 +1579,25 @@ function stopRecording() {
 function fmtSize(b) { return b > 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1e3)) + " KB"; }
 function recFileName() { const d = new Date(), z = n => String(n).padStart(2, "0"); return `rep-review-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.${REC.ext}`; }
 function finishRecording() {
+  if (REC.finished) return;
+  REC.finished = true;
   REC.blob = new Blob(REC.chunks, { type: REC.mime.split(";")[0] }); REC.chunks = [];
+  if (REC.canvas) REC.canvas.remove();
+  REC.vtrack = null;
+  const secs0 = REC.acc / 1000;
+  if (REC.blob.size < 20000 && secs0 >= 1) {
+    badMimes.add(REC.mime);
+    const next = pickMime();
+    $("#recVideo").removeAttribute("src"); $("#recVideo").hidden = true;
+    $("#recCap").innerHTML = `<b style="color:var(--accent)">The recording came out empty.</b> ${BROWSER} didn't capture any video. ` +
+      (next ? "Press Record again: Rep Review will try a different video format this time." : "Try recording in Chrome instead.") +
+      `<br><small>Details: ${REC.mime} · ${REC.canvas.width} × ${REC.canvas.height} · ${REC.blob.size} bytes${REC.err ? " · " + REC.err : ""} · ${BROWSER}</small>`;
+    $("#recSave").hidden = true; $("#recShare").hidden = true;
+    REC.blob = null;
+    openDlg($("#recDlg"));
+    return;
+  }
+  $("#recVideo").hidden = false;
   if (REC.url) URL.revokeObjectURL(REC.url);
   REC.url = URL.createObjectURL(REC.blob);
   $("#recVideo").src = REC.url;
