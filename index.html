@@ -1532,10 +1532,16 @@ function drawRecFrame() {
     vis.forEach((p, j) => { const r = rs[j]; drawClipInto(c, p, ox + (r.left - L) * s, oy + (r.top - T) * s, r.width * s, r.height * s); });
   }
 }
-function recLoop() {
+const REC_FPS = 30;
+function recLoop(now) {
   if (!REC.on) return;
-  drawRecFrame();
-  if (REC.vtrack && REC.vtrack.requestFrame) { try { REC.vtrack.requestFrame(); } catch (e) {} }
+  // Draw a steady 30 frames a second, whatever the screen's refresh rate (60 or 120 Hz).
+  now = now || performance.now();
+  if (!REC.lastDraw || now - REC.lastDraw >= 1000 / REC_FPS - 4) {
+    REC.lastDraw = REC.lastDraw && now - REC.lastDraw < 2000 / REC_FPS ? REC.lastDraw + 1000 / REC_FPS : now;
+    drawRecFrame();
+    if (REC.manual) { try { REC.vtrack.requestFrame(); } catch (e) {} }
+  }
   const secs = Math.floor((REC.acc + (REC.paused ? 0 : performance.now() - REC.t0)) / 1000);
   const tt = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
   $("#recTime").textContent = tt; $("#cRecTime").textContent = tt;
@@ -1575,8 +1581,11 @@ async function startRecording() {
   const cd = $("#countdown");
   for (const n of [3, 2, 1]) { cd.textContent = n; cd.hidden = false; drawRecFrame(); await new Promise(r => setTimeout(r, 700)); }
   cd.hidden = true;
-  const stream = REC.canvas.captureStream(30);
+  // Hand frames over explicitly where the browser allows it, so each drawn frame is captured exactly once.
+  REC.manual = !!(window.CanvasCaptureMediaStreamTrack && "requestFrame" in CanvasCaptureMediaStreamTrack.prototype);
+  const stream = REC.canvas.captureStream(REC.manual ? 0 : REC_FPS);
   REC.vtrack = stream.getVideoTracks()[0];
+  REC.lastDraw = 0;
   if (REC.mic) REC.mic.getAudioTracks().forEach(t => stream.addTrack(t));
   try {
     REC.mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: REC.fmt === "vertical" ? 10e6 : 8e6, audioBitsPerSecond: 128000 });
