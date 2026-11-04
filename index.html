@@ -1561,6 +1561,11 @@ function recLoop(now) {
   if (!REC.lastDraw || now - REC.lastDraw >= 1000 / REC_FPS - 4) {
     REC.lastDraw = REC.lastDraw && now - REC.lastDraw < 2000 / REC_FPS ? REC.lastDraw + 1000 / REC_FPS : now;
     drawRecFrame();
+    // Safari may drop frames identical to the last one (paused clips), shortening the video. Make each frame differ by one faint pixel.
+    REC.tickN = (REC.tickN || 0) + 1;
+    REC.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    REC.ctx.fillStyle = REC.tickN % 2 ? "#010101" : "#020202";
+    REC.ctx.fillRect(REC.canvas.width - 1, REC.canvas.height - 1, 1, 1);
     if (REC.manual) { try { REC.vtrack.requestFrame(); } catch (e) {} }
     if (SCREEN_COPY) updateScreenCopies();
   }
@@ -1658,6 +1663,18 @@ function finishRecording() {
     return;
   }
   $("#recVideo").hidden = false;
+  const timerSecs = REC.acc / 1000, capBase = () => $("#recCap").textContent;
+  $("#recVideo").onloadedmetadata = () => {
+    const v = $("#recVideo");
+    const check = d => {
+      if (!isFinite(d) || d <= 0) return;
+      if (Math.abs(d - timerSecs) > 1) {
+        $("#recCap").innerHTML = capBase().replace(/\s*It's only.*$/, "") + `<br><b style="color:var(--accent)">The saved video is ${d.toFixed(1)} s but you recorded ${timerSecs.toFixed(1)} s.</b> Please send me this line: <small>${REC.mime} · ${REC.canvas.width}×${REC.canvas.height} · ${REC.manual ? "manual" : "auto"} frames · ${BROWSER} · ${navigator.userAgent.match(/Version\/[\d.]+|Chrome\/[\d.]+/)?.[0] || ""} · ${navigator.platform || ""}</small>`;
+      }
+    };
+    if (isFinite(v.duration)) check(v.duration);
+    else { v.currentTime = 1e9; v.addEventListener("timeupdate", function f() { v.removeEventListener("timeupdate", f); check(v.duration); v.currentTime = 0; }); }
+  };
   if (REC.url) URL.revokeObjectURL(REC.url);
   REC.url = URL.createObjectURL(REC.blob);
   $("#recVideo").src = REC.url;
