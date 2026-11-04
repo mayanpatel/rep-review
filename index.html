@@ -1633,12 +1633,20 @@ async function startRecording() {
   if (MAC_SAFARI) {
     // Mac Safari's recorder can take seconds to start and drops sound recorded before its first video frame.
     // Record from now, but only count down once it is really producing video.
+    // Safari only hands over video when recording stops, so don't wait for data. Wait until the recorder
+    // reports it has started and the page runs smoothly again (start-up can freeze it), at least 1 s, at most 8 s.
     cd.classList.add("wait"); cd.textContent = "Getting ready…"; cd.hidden = false;
     const t = performance.now();
-    while (REC.on && !REC.chunks.some(c => c.size > 0) && performance.now() - t < 8000) await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => { REC.mr.addEventListener("start", r, { once: true }); setTimeout(r, 3000); });
+    let last = performance.now(), smooth = 0;
+    while (REC.on && performance.now() - t < 8000) {
+      await new Promise(r => requestAnimationFrame(r));
+      const now = performance.now(), gap = now - last; last = now;
+      smooth = gap < 60 ? smooth + gap : 0;
+      if (smooth >= 600 && now - t >= 1000) break;
+    }
     cd.classList.remove("wait");
     if (!REC.on) { cd.hidden = true; return; }
-    if (!REC.chunks.some(c => c.size > 0)) { cd.hidden = true; REC.err = "no video after 8 s"; stopRecording(); return; }
     for (const n of [3, 2, 1]) { if (!REC.on) break; cd.textContent = n; await new Promise(r => setTimeout(r, 700)); }
     cd.hidden = true;
   }
