@@ -25,6 +25,7 @@
   --accent-ink: #231705;
   --ghost: #4cc9f0;
   --scrim: rgb(9 13 11 / .72);
+  --rec-red: #ff4040;
   --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
   --body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -64,7 +65,25 @@ button { cursor: pointer; }
 .notice button { flex: none; background: none; border: none; color: var(--muted); font-size: 13px; padding: 0 4px; text-decoration: underline; text-underline-offset: 3px; }
 
 /* work area: rail + stage */
-.work { flex: 1; min-height: 0; display: flex; }
+.work { position: relative; flex: 1; min-height: 0; display: flex; }
+/* recorder */
+.rdot { width: 12px; height: 12px; border-radius: 50%; background: var(--rec-red); flex: none; }
+.dbtn.recording .rdot { border-radius: 2px; }
+#recBtn { align-items: center; }
+#recBtn b { line-height: 1; }
+.dbtn.recording { background: color-mix(in srgb, var(--rec-red) 18%, transparent); }
+.dbtn.recording .rdot, .recmini .rdot { animation: recblink 1.2s steps(2, start) infinite; }
+.dbtn.recording.paused .rdot { animation: none; opacity: .45; }
+.dbtn.recording #recTime { display: inline; }
+.recmini { gap: 6px; font-family: var(--mono); font-size: 12px; }
+.recmini b { font-weight: 500; }
+@keyframes recblink { to { visibility: hidden; } }
+.countdown { position: absolute; inset: 0; z-index: 13; display: grid; place-items: center; pointer-events: none; font-family: var(--display); font-weight: 700; font-size: clamp(80px, 18vw, 180px); color: var(--fg); text-shadow: 0 4px 30px rgb(0 0 0 / .8); }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.chk input { width: 16px; height: 16px; accent-color: var(--fg); }
+.recnote { margin: 0; max-width: 32ch; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+#recStart { background: var(--rec-red); color: #fff; justify-content: center; }
+#recDlg video { display: block; max-width: 100%; max-height: 62vh; border-radius: 8px; background: #000; margin-inline: auto; }
 .rail { order: -1; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding-left: var(--gl); padding-block: 4px; position: relative; z-index: 5; }
 .rail .sep { width: 22px; height: 1px; margin: 6px 0; background: var(--line); flex: none; }
 .stage { flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; gap: 6px; padding: 4px var(--gr) 6px 10px; }
@@ -253,7 +272,7 @@ dialog h2 { font-family: var(--display); font-weight: 700; font-size: 20px; lett
   .pill { padding: 6px 9px; gap: 5px; }
   #linkLabel { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .toast, .cleanbar, .pb { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .toast, .cleanbar, .pb { transition: none; } .dbtn.recording .rdot, .recmini .rdot { animation: none; } }
 </style>
 
 </head>
@@ -305,6 +324,7 @@ dialog h2 { font-family: var(--display); font-weight: 700; font-size: 20px; lett
 </div>
 
 <div class="work">
+  <div class="countdown" id="countdown" hidden></div>
   <main class="stage" id="stage">
     <section class="panel" data-i="0"></section>
     <section class="panel active" data-i="1"></section>
@@ -388,6 +408,18 @@ dialog h2 { font-family: var(--display); font-weight: 700; font-size: 20px; lett
         <button class="ibtn" id="loopOn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg><span id="loopOnTxt">Turn loop on</span></button>
       </div>
     </div>
+    <div class="popwrap">
+      <button class="dbtn" id="recBtn" aria-haspopup="true" title="Record the video area with your voice (R)"><span class="rdot"></span><span class="hide-s" id="recBtnTxt">Record</span><b id="recTime" hidden>0:00</b></button>
+      <div class="pop up" id="recPop" hidden>
+        <div class="pf"><span class="label">Format</span>
+          <div class="segctl" id="recFmt"><button data-fmt="screen" aria-pressed="true">Screen</button><button data-fmt="vertical" aria-pressed="false">Vertical 9:16</button></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="recMic" checked> Record my voice</label>
+        <p class="recnote" id="recNote">Records the video area and your drawings, not the buttons. Pausing the clips keeps recording so you can talk over a frame. Nothing is uploaded.</p>
+        <button class="ibtn" id="recStart"><span class="rdot" style="background:#fff"></span>Start recording</button>
+      </div>
+    </div>
+    <button class="ibtn" id="recPause" hidden title="Pause recording" aria-label="Pause recording"></button>
     <button class="ibtn" id="snap" title="Save a snapshot of what's on screen (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="hide-s">Snapshot</span></button>
   </div>
 </div>
@@ -396,6 +428,7 @@ dialog h2 { font-family: var(--display); font-weight: 700; font-size: 20px; lett
   <button class="ibtn" id="cBack" aria-label="Back one frame"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14l-10-7z"/></svg></button>
   <button class="play" id="cPlay" aria-label="Play"><svg class="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg></button>
   <button class="ibtn" id="cFwd" aria-label="Forward one frame"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10-7z"/></svg></button>
+  <button class="ibtn recmini" id="cRec" hidden title="Stop recording (R)" aria-label="Stop recording"><span class="rdot"></span><b id="cRecTime">0:00</b></button>
   <button class="ibtn" id="cExit" title="Exit full screen (F or Esc)" aria-label="Exit full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v4H4M20 8h-4V4M16 20v-4h4M4 16h4v4"/></svg></button>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -412,6 +445,18 @@ dialog h2 { font-family: var(--display); font-weight: 700; font-size: 20px; lett
   </div>
 </dialog>
 
+<dialog id="recDlg">
+  <h2>Your recording</h2>
+  <video id="recVideo" controls playsinline></video>
+  <div class="cap" id="recCap"></div>
+  <div class="row">
+    <button class="ibtn solid" id="recSave"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></svg>Save video</button>
+    <button class="ibtn solid" id="recShare" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5M5 12v8h14v-8"/></svg>Share</button>
+    <span class="spacer"></span>
+    <button class="ibtn solid" id="recDiscard">Discard</button>
+  </div>
+</dialog>
+
 <dialog id="keysDlg">
   <h2>Keyboard shortcuts</h2>
   <dl class="keys">
@@ -424,6 +469,7 @@ dialog h2 { font-family: var(--display); font-weight: 700; font-size: 20px; lett
     <dt>O</dt><dd>Overlay on or off</dd>
     <dt>[ ]</dt><dd>Set loop start and end</dd>
     <dt>S</dt><dd>Snapshot</dd>
+    <dt>R</dt><dd>Start or stop recording</dd>
     <dt>Ctrl+Z</dt><dd>Undo the last drawing</dd>
     <dt>?</dt><dd>This list</dd>
     <dt>Esc</dt><dd>Close menus, leave full screen or single-clip view</dd>
@@ -1397,6 +1443,168 @@ $("#snapDel").onclick = () => { snaps.splice(openSnap, 1); renderStrip(); closeD
 $("#keysOpen").onclick = () => { closePops(); openDlg($("#keysDlg")); };
 $("#keysClose").onclick = () => closeDlg($("#keysDlg"));
 
+/* ---------- recorder: video area + drawings + voice ---------- */
+const REC = { on: false, paused: false, fmt: "screen", mr: null, chunks: [], canvas: null, ctx: null, mic: null, raf: 0, t0: 0, acc: 0, blob: null, url: "", mime: "", ext: "mp4", hadVoice: false };
+function pickMime() {
+  if (!window.MediaRecorder) return null;
+  const opts = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+  return opts.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || null;
+}
+const even = n => Math.max(2, Math.round(n / 2) * 2);
+function recSize() {
+  if (REC.fmt === "vertical") return [1080, 1920];
+  const vis = panels.filter(p => !p.el.hidden);
+  const rs = vis.map(p => p.view.getBoundingClientRect());
+  const w = Math.max(...rs.map(r => r.right)) - Math.min(...rs.map(r => r.left));
+  const h = Math.max(...rs.map(r => r.bottom)) - Math.min(...rs.map(r => r.top));
+  const sc = Math.min(window.devicePixelRatio || 1, 1920 / Math.max(w, h)) || 1;
+  return [even(w * sc), even(h * sc)];
+}
+/* draw one clip's visible picture area into a destination box, keeping its proportions */
+function drawClipInto(c, p, dx, dy, dw, dh) {
+  const vw = p.view.clientWidth, vh = p.view.clientHeight;
+  if (!vw || !vh || !p.bw) return;
+  const lw = p.bw * p.z, lh = p.bh * p.z;
+  const lx = vw / 2 + p.px - lw / 2, ly = vh / 2 + p.py - lh / 2;
+  const cx = Math.max(0, lx), cy = Math.max(0, ly), cw = Math.min(vw, lx + lw) - cx, ch = Math.min(vh, ly + lh) - cy;
+  if (cw <= 0 || ch <= 0) return;
+  const s = Math.min(dw / cw, dh / ch), ox = dx + (dw - cw * s) / 2, oy = dy + (dh - ch * s) / 2;
+  c.save();
+  c.beginPath(); c.rect(ox, oy, cw * s, ch * s); c.clip();
+  c.translate(ox - cx * s, oy - cy * s); c.scale(s, s);
+  drawPanel(c, p, 0, 0, vw, vh);
+  c.restore();
+  const tag = S.overlay ? `${"AB"[p.i]}+${"AB"[S.ghostIdx]}` : "AB"[p.i];
+  const f = Math.max(14, Math.round(Math.min(c.canvas.width, c.canvas.height) * 0.028));
+  c.font = `700 ${f}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+  const tw = c.measureText(tag).width + f * 0.8;
+  c.fillStyle = "rgba(0,0,0,.62)"; c.fillRect(ox + f * 0.5, oy + f * 0.5, tw, f * 1.4);
+  c.fillStyle = "#ffd60a"; c.textAlign = "left"; c.textBaseline = "middle";
+  c.fillText(tag, ox + f * 0.9, oy + f * 1.22);
+}
+function drawRecFrame() {
+  const c = REC.ctx, W = REC.canvas.width, H = REC.canvas.height;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = "#000"; c.fillRect(0, 0, W, H);
+  const vis = panels.filter(p => !p.el.hidden && dur(p) && p.bw);
+  if (!vis.length) return;
+  if (REC.fmt === "vertical") {
+    const gap = vis.length > 1 ? 8 : 0, sh = (H - gap * (vis.length - 1)) / vis.length;
+    vis.forEach((p, j) => drawClipInto(c, p, 0, j * (sh + gap), W, sh));
+  } else {
+    const rs = vis.map(p => p.view.getBoundingClientRect());
+    const L = Math.min(...rs.map(r => r.left)), T = Math.min(...rs.map(r => r.top));
+    const bw = Math.max(...rs.map(r => r.right)) - L, bh = Math.max(...rs.map(r => r.bottom)) - T;
+    const s = Math.min(W / bw, H / bh), ox = (W - bw * s) / 2, oy = (H - bh * s) / 2;
+    vis.forEach((p, j) => { const r = rs[j]; drawClipInto(c, p, ox + (r.left - L) * s, oy + (r.top - T) * s, r.width * s, r.height * s); });
+  }
+}
+function recLoop() {
+  if (!REC.on) return;
+  drawRecFrame();
+  const secs = Math.floor((REC.acc + (REC.paused ? 0 : performance.now() - REC.t0)) / 1000);
+  const tt = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  $("#recTime").textContent = tt; $("#cRecTime").textContent = tt;
+  REC.raf = requestAnimationFrame(recLoop);
+}
+function setRecUI() {
+  $("#recBtn").classList.toggle("recording", REC.on);
+  $("#recBtn").classList.toggle("paused", REC.paused);
+  $("#recBtnTxt").hidden = REC.on; $("#recTime").hidden = !REC.on;
+  $("#recPause").hidden = !REC.on; $("#cRec").hidden = !REC.on;
+  $("#recBtn").title = REC.on ? "Stop recording (R)" : "Record the video area with your voice (R)";
+  $("#recPause").innerHTML = REC.paused ? '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+  $("#recPause").title = REC.paused ? "Resume recording" : "Pause recording";
+  $("#recPause").setAttribute("aria-label", $("#recPause").title);
+}
+async function startRecording() {
+  if (REC.on || REC.starting) return;
+  closePops();
+  if (!panels.some(p => dur(p) && !p.bad)) { toast("Load a clip first."); return; }
+  const mime = pickMime();
+  if (!mime || !HTMLCanvasElement.prototype.captureStream) { toast("This browser can't record video. Try Safari or Chrome."); return; }
+  REC.starting = true;
+  REC.mic = null; REC.hadVoice = false;
+  if ($("#recMic").checked) {
+    try { REC.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); REC.hadVoice = true; }
+    catch (e) { toast(HOSTED ? "The microphone isn't available, so this recording has no voice. Check the browser's microphone permission." : "The microphone isn't available inside Claude, so this recording has no voice. Use the GitHub Pages site to record your voice."); }
+  }
+  REC.canvas = document.createElement("canvas");
+  [REC.canvas.width, REC.canvas.height] = recSize();
+  REC.ctx = REC.canvas.getContext("2d");
+  drawRecFrame();
+  const cd = $("#countdown");
+  for (const n of [3, 2, 1]) { cd.textContent = n; cd.hidden = false; drawRecFrame(); await new Promise(r => setTimeout(r, 700)); }
+  cd.hidden = true;
+  const stream = REC.canvas.captureStream(30);
+  if (REC.mic) REC.mic.getAudioTracks().forEach(t => stream.addTrack(t));
+  try {
+    REC.mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: REC.fmt === "vertical" ? 10e6 : 8e6, audioBitsPerSecond: 128000 });
+  } catch (e) { REC.starting = false; stopTracks(); toast("Recording couldn't start in this browser."); return; }
+  REC.mime = mime; REC.ext = mime.startsWith("video/mp4") ? "mp4" : "webm"; REC.chunks = [];
+  REC.mr.ondataavailable = e => { if (e.data && e.data.size) REC.chunks.push(e.data); };
+  REC.mr.onstop = finishRecording;
+  REC.mr.start(1000);
+  REC.on = true; REC.paused = false; REC.acc = 0; REC.t0 = performance.now(); REC.starting = false;
+  setRecUI(); recLoop();
+}
+function togglePauseRecording() {
+  if (!REC.on || !REC.mr) return;
+  if (REC.paused) { REC.mr.resume(); REC.t0 = performance.now(); REC.paused = false; }
+  else { REC.mr.pause(); REC.acc += performance.now() - REC.t0; REC.paused = true; }
+  setRecUI();
+}
+function stopTracks() { if (REC.mic) REC.mic.getTracks().forEach(t => t.stop()); REC.mic = null; }
+function stopRecording() {
+  if (!REC.on) return;
+  if (!REC.paused) REC.acc += performance.now() - REC.t0;
+  REC.on = false; REC.paused = false; cancelAnimationFrame(REC.raf);
+  try { REC.mr.stop(); } catch (e) { finishRecording(); }
+  stopTracks(); setRecUI();
+}
+function fmtSize(b) { return b > 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1e3)) + " KB"; }
+function recFileName() { const d = new Date(), z = n => String(n).padStart(2, "0"); return `rep-review-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.${REC.ext}`; }
+function finishRecording() {
+  REC.blob = new Blob(REC.chunks, { type: REC.mime.split(";")[0] }); REC.chunks = [];
+  if (REC.url) URL.revokeObjectURL(REC.url);
+  REC.url = URL.createObjectURL(REC.blob);
+  $("#recVideo").src = REC.url;
+  const secs = Math.round(REC.acc / 1000);
+  $("#recCap").textContent = `${REC.fmt === "vertical" ? "Vertical 9:16" : "Screen"} · ${REC.canvas.width} × ${REC.canvas.height} · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")} · ${fmtSize(REC.blob.size)} · ${REC.ext.toUpperCase()}${REC.hadVoice ? " with voice" : ", no voice"}. It's only on this device until you save it.`;
+  let canShare = false;
+  try { canShare = HOSTED && !!navigator.canShare && navigator.canShare({ files: [new File([REC.blob], recFileName(), { type: REC.blob.type })] }); } catch (e) {}
+  $("#recShare").hidden = !canShare;
+  $("#recSave").hidden = !(HOSTED || downloads);
+  openDlg($("#recDlg"));
+}
+$("#recSave").onclick = async () => {
+  if (!REC.blob) return;
+  const name = recFileName();
+  if (HOSTED) { const a = document.createElement("a"); a.href = REC.url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast("Video saved to your downloads."); return; }
+  if (!downloads) return;
+  try { await downloads.save({ filename: name, data: REC.blob }); toast("Video saved."); }
+  catch (e) { toast(e && e.code === "declined" ? "Save cancelled." : "Saving isn't available here. Use the GitHub Pages site to save videos."); }
+};
+$("#recShare").onclick = async () => {
+  if (!REC.blob) return;
+  try { await navigator.share({ files: [new File([REC.blob], recFileName(), { type: REC.blob.type })], title: "Rep Review" }); }
+  catch (e) { if (e && e.name !== "AbortError") toast("Sharing didn't work here. Save the video instead."); }
+};
+$("#recDiscard").onclick = () => {
+  closeDlg($("#recDlg")); $("#recVideo").removeAttribute("src"); $("#recVideo").load();
+  if (REC.url) URL.revokeObjectURL(REC.url); REC.url = ""; REC.blob = null; toast("Recording discarded.");
+};
+document.querySelectorAll("#recFmt button").forEach(b => b.addEventListener("click", () => {
+  REC.fmt = b.dataset.fmt;
+  document.querySelectorAll("#recFmt button").forEach(x => x.setAttribute("aria-pressed", x === b));
+}));
+$("#recStart").addEventListener("click", startRecording);
+$("#recPause").addEventListener("click", togglePauseRecording);
+$("#cRec").addEventListener("click", stopRecording);
+setRecUI();
+$("#recBtn").addEventListener("click", e => { if (REC.on) { e.stopImmediatePropagation(); stopRecording(); } }, true);
+if (!HOSTED) $("#recNote").textContent = "Records the video area and your drawings, not the buttons. Inside Claude the microphone is blocked, so recordings here have no voice; the GitHub Pages site records your voice.";
+
 /* ---------- dock wiring ---------- */
 $("#gRange").addEventListener("pointerdown", () => (gDragging = true));
 $("#gRange").addEventListener("change", () => (gDragging = false));
@@ -1487,6 +1695,7 @@ document.addEventListener("keydown", e => {
   else if (k === "p") addSyncPoint();
   else if (k === "o") setOverlay(!S.overlay);
   else if (k === "s") capture();
+  else if (k === "r") { if (REC.on) stopRecording(); else startRecording(); }
   else if (e.key === "[") setLoopEdge("in");
   else if (e.key === "]") setLoopEdge("out");
 });

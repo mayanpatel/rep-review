@@ -13,6 +13,7 @@ A side-by-side video coach that runs in the browser. Compare a clip of yourself 
 - Freehand, line, arrow, circle and angle drawing tools
 - Zoom, pan and mirror
 - Snapshots of the current view, saved as images
+- Record the video area and drawings with your voice, as an MP4 for review or a vertical 9:16 video for social media
 
 ## Privacy
 
@@ -20,4 +21,4 @@ Videos never leave your device. When you load a clip, the browser plays it strai
 
 ## Keyboard shortcuts
 
-Space play/pause · ← → step a frame (Shift for 10) · 1 / 2 single clip · F full screen · ? all shortcuts · L link · P add sync point · O overlay · S snapshot · [ ] loop start/end · Ctrl+Z undo
+Space play/pause · ← → step a frame (Shift for 10) · 1 / 2 single clip · F full screen · ? all shortcuts · L link · P add sync point · O overlay · S snapshot · R record · [ ] loop start/end · Ctrl+Z undo
