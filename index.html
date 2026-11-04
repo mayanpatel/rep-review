@@ -78,6 +78,7 @@ button { cursor: pointer; }
 .recmini { gap: 6px; font-family: var(--mono); font-size: 12px; }
 .recmini b { font-weight: 500; }
 @keyframes recblink { to { visibility: hidden; } }
+.countdown.wait { font-size: clamp(22px, 3.5vw, 32px); letter-spacing: .06em; text-transform: uppercase; }
 .countdown { position: absolute; inset: 0; z-index: 13; display: grid; place-items: center; pointer-events: none; font-family: var(--display); font-weight: 700; font-size: clamp(80px, 18vw, 180px); color: var(--fg); text-shadow: 0 4px 30px rgb(0 0 0 / .8); }
 .chk { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
 .chk input { width: 16px; height: 16px; accent-color: var(--fg); }
@@ -1477,6 +1478,8 @@ const REC = { on: false, paused: false, fmt: "screen", mr: null, chunks: [], can
 const UA = navigator.userAgent;
 const BROWSER = /Edg\//.test(UA) ? "Edge" : /Electron|Claude\//.test(UA) ? "Claude app" : /Firefox\//.test(UA) ? "Firefox" : /Chrome\/|CriOS/.test(UA) ? "Chrome" : /Safari\//.test(UA) ? "Safari" : "this browser";
 const badMimes = new Set();
+// Safari on a Mac (not iPad, which reports a Mac but has touch): needs a warm-up and lighter frames.
+let MAC_SAFARI = BROWSER === "Safari" && !(navigator.maxTouchPoints > 1) && !/iPhone|iPad/.test(UA);
 function pickMime() {
   if (!window.MediaRecorder) return null;
   const safari = BROWSER === "Safari";
@@ -1491,7 +1494,7 @@ function recSize() {
   const rs = vis.map(p => p.view.getBoundingClientRect());
   const w = Math.max(...rs.map(r => r.right)) - Math.min(...rs.map(r => r.left));
   const h = Math.max(...rs.map(r => r.bottom)) - Math.min(...rs.map(r => r.top));
-  const sc = Math.min(window.devicePixelRatio || 1, 1920 / Math.max(w, h)) || 1;
+  const sc = Math.min(window.devicePixelRatio || 1, (MAC_SAFARI ? 1600 : 1920) / Math.max(w, h)) || 1;
   return [even(w * sc), even(h * sc)];
 }
 /* draw one clip's visible picture area into a destination box, keeping its proportions */
@@ -1518,7 +1521,7 @@ function drawClipInto(c, p, dx, dy, dw, dh) {
 }
 /* Safari on iPad stops showing videos on screen while they're being copied into a recording.
    During a recording there, each video is redrawn on screen from the same frames being recorded. */
-let SCREEN_COPY = BROWSER === "Safari" || /iPad|iPhone|CriOS|FxiOS|EdgiOS/.test(UA) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(UA));
+let SCREEN_COPY = /iPad|iPhone|CriOS|FxiOS|EdgiOS/.test(UA) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(UA));
 function updateScreenCopies() {
   panels.forEach(p => {
     const v = p.v;
@@ -1606,8 +1609,10 @@ async function startRecording() {
   REC.ctx = REC.canvas.getContext("2d");
   drawRecFrame();
   const cd = $("#countdown");
-  for (const n of [3, 2, 1]) { cd.textContent = n; cd.hidden = false; drawRecFrame(); await new Promise(r => setTimeout(r, 700)); }
-  cd.hidden = true;
+  if (!MAC_SAFARI) {
+    for (const n of [3, 2, 1]) { cd.textContent = n; cd.hidden = false; drawRecFrame(); await new Promise(r => setTimeout(r, 700)); }
+    cd.hidden = true;
+  }
   // Hand frames over explicitly where the browser allows it, so each drawn frame is captured exactly once.
   REC.manual = !!(window.CanvasCaptureMediaStreamTrack && "requestFrame" in CanvasCaptureMediaStreamTrack.prototype);
   const stream = REC.canvas.captureStream(REC.manual ? 0 : REC_FPS);
@@ -1625,6 +1630,18 @@ async function startRecording() {
   REC.mr.start(1000);
   REC.on = true; REC.paused = false; REC.acc = 0; REC.t0 = performance.now(); REC.starting = false;
   setRecUI(); recLoop();
+  if (MAC_SAFARI) {
+    // Mac Safari's recorder can take seconds to start and drops sound recorded before its first video frame.
+    // Record from now, but only count down once it is really producing video.
+    cd.classList.add("wait"); cd.textContent = "Getting ready…"; cd.hidden = false;
+    const t = performance.now();
+    while (REC.on && !REC.chunks.some(c => c.size > 0) && performance.now() - t < 8000) await new Promise(r => setTimeout(r, 100));
+    cd.classList.remove("wait");
+    if (!REC.on) { cd.hidden = true; return; }
+    if (!REC.chunks.some(c => c.size > 0)) { cd.hidden = true; REC.err = "no video after 8 s"; stopRecording(); return; }
+    for (const n of [3, 2, 1]) { if (!REC.on) break; cd.textContent = n; await new Promise(r => setTimeout(r, 700)); }
+    cd.hidden = true;
+  }
 }
 function togglePauseRecording() {
   if (!REC.on || !REC.mr) return;
