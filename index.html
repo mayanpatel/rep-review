@@ -1778,19 +1778,8 @@ setLayoutMode("auto");
 const sampleA = b64Blob(SAMPLES[0]), sampleB = b64Blob(SAMPLES[1]);
 setSrc(A, URL.createObjectURL(sampleA), "Sample · <em>Reference back tuck</em>", sampleA);
 setSrc(B, URL.createObjectURL(sampleB), "Sample · <em>Athlete back tuck</em>", sampleB);
-let ready = 0;
-panels.forEach((p, j) => p.v.addEventListener("loadedmetadata", function boot() {
-  p.v.removeEventListener("loadedmetadata", boot);
-  setT(p, j ? 1.25 : 1.06);
-  if (++ready === 2) {
-    S.pts = [[0.72, 0.85], [1.06, 1.25], [1.52, 1.66]];
-    setLinked(true, true);
-    A.shapes.push({ type: "line", color: COLORS[0], pts: [[0.14, 0.425], [0.66, 0.425]] });
-    B.shapes.push({ type: "line", color: COLORS[0], pts: [[0.14, 0.425], [0.66, 0.425]] });
-    B.shapes.push({ type: "arrow", color: COLORS[1], pts: [[0.6, 0.505], [0.6, 0.44]] });
-    panels.forEach(render);
-  }
-}));
+// Sample clips open clean: at the start, unlinked, no sync points or drawings.
+panels.forEach(p => p.v.addEventListener("loadeddata", () => setT(p, 0.001), { once: true }));
 syncUI();
 requestAnimationFrame(tick);
 </script>
